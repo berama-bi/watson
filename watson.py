@@ -52,7 +52,7 @@ def get_all_search_results(term):
             "q": term,
             "page": page,
             "period": "total",
-            "limit": 40
+            "limit": 5
         }
 
         try:
