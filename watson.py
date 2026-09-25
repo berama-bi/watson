@@ -42,6 +42,9 @@ adapter = requests.adapters.HTTPAdapter(
 session.mount("https://", adapter)
 session.mount("http://", adapter)
 
+# ---------------------------------------------------------
+# SEARCH ARTICLES
+# ---------------------------------------------------------
 
 def get_all_search_results(term):
 
@@ -100,8 +103,7 @@ def get_all_search_results(term):
         )
 
         print(
-            f"Found {len(page_articles)} "
-            f"articles | "
+            f"Found {len(page_articles)} articles | "
             f"Total {len(articles)}"
         )
 
@@ -113,13 +115,15 @@ def get_all_search_results(term):
     return articles
 
 
+# ---------------------------------------------------------
+# GET COMMENTS
+# ---------------------------------------------------------
+
 def get_comments(story_id):
 
     try:
 
-        url = (
-            f"{DISCUSSION_URL}/{story_id}"
-        )
+        url = f"{DISCUSSION_URL}/{story_id}"
 
         response = session.get(
             url,
@@ -142,55 +146,86 @@ def get_comments(story_id):
         return None
 
 
-def process_article(article):
+# ---------------------------------------------------------
+# PROCESS ARTICLE
+# ---------------------------------------------------------
+
+def process_article(article, search_term):
 
     story_id = article.get(
         "story_id"
     )
 
-    discussion = None
-    comment_count = 0
-
-    if story_id:
-
-        discussion = get_comments(
-            story_id
-        )
-
-        if discussion:
-
-            comment_count = (
-                discussion
-                .get("data", {})
-                .get(
-                    "comments_count",
-                    0
-                )
-            )
-
-    return {
+    news_row = {
+        "search_term": search_term,
         "story_id": story_id,
-        "url": article.get(
-            "full_url"
-        ),
-        "title": article.get(
-            "title"
-        ),
-        "published_at": article.get(
-            "published_at"
-        ),
-        "comment_count": comment_count,
-        "article": article,
-        "discussion": discussion
+        "title": article.get("title"),
+        "url": article.get("full_url"),
+        "published_at": article.get("published_at"),
+        "comment_count": 0
     }
 
+    comments = []
+
+    if not story_id:
+        return news_row, comments
+
+    discussion = get_comments(story_id)
+
+    if not discussion:
+        return news_row, comments
+
+    data = discussion.get(
+        "data",
+        {}
+    )
+
+    news_row["comment_count"] = data.get(
+        "comments_count",
+        0
+    )
+
+    # extract comments only
+    for comment in data.get(
+        "comments",
+        []
+    ):
+
+        comments.append({
+            "search_term": search_term,
+            "story_id": story_id,
+            "comment_id": comment.get("id"),
+            "created_at": comment.get("created_at"),
+            "author": (
+                comment.get("user", {})
+                .get("username")
+            ),
+            "text": (
+                comment.get("text")
+                or comment.get("content")
+            )
+        })
+
+        # replies intentionally ignored
+
+    return news_row, comments
+
+
+# ---------------------------------------------------------
+# OUTPUT
+# ---------------------------------------------------------
 
 output = {
     "generated_at": time.strftime(
         "%Y-%m-%d %H:%M:%S"
     ),
-    "searches": []
+    "news": [],
+    "comments": []
 }
+
+# ---------------------------------------------------------
+# MAIN LOOP
+# ---------------------------------------------------------
 
 for term in SEARCH_TERMS:
 
@@ -203,13 +238,10 @@ for term in SEARCH_TERMS:
         term
     )
 
-    search_data = {
-        "search_term": term,
-        "article_count": len(
-            articles
-        ),
-        "articles": []
-    }
+    print(
+        f"Total articles found: "
+        f"{len(articles)}"
+    )
 
     total = len(articles)
 
@@ -217,13 +249,14 @@ for term in SEARCH_TERMS:
         max_workers=25
     ) as executor:
 
-        futures = {
+        futures = [
             executor.submit(
                 process_article,
-                article
-            ): article
+                article,
+                term
+            )
             for article in articles
-        }
+        ]
 
         done = 0
 
@@ -233,12 +266,16 @@ for term in SEARCH_TERMS:
 
             try:
 
-                result = future.result()
+                news_row, comments = (
+                    future.result()
+                )
 
-                search_data[
-                    "articles"
-                ].append(
-                    result
+                output["news"].append(
+                    news_row
+                )
+
+                output["comments"].extend(
+                    comments
                 )
 
             except Exception as e:
@@ -256,11 +293,9 @@ for term in SEARCH_TERMS:
                     f"{done}/{total}"
                 )
 
-    output[
-        "searches"
-    ].append(
-        search_data
-    )
+# ---------------------------------------------------------
+# SAVE
+# ---------------------------------------------------------
 
 with open(
     "watson_export.json",
@@ -277,6 +312,7 @@ with open(
 
 print()
 print("=" * 80)
-print("DONE")
-print("Saved: watson_export.json")
+print(f"News rows     : {len(output['news'])}")
+print(f"Comment rows  : {len(output['comments'])}")
+print("Saved         : watson_export.json")
 print("=" * 80)
