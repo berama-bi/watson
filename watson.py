@@ -24,8 +24,8 @@ SEARCH_TERMS = [
 SEARCH_URL = "https://www.watson.ch/api/2.0/articles/search"
 DISCUSSION_URL = "https://www.watson.ch/api/2.0/discussions"
 
-MAX_PAGES = 5
-LIMIT = 40
+MAX_PAGES = 20
+LIMIT = 50
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
@@ -152,14 +152,13 @@ def get_comments(story_id):
 
 def process_article(article, search_term):
 
-    story_id = article.get(
-        "story_id"
-    )
+    story_id = article.get("story_id")
 
     news_row = {
         "search_term": search_term,
         "story_id": story_id,
         "title": article.get("title"),
+        "lead": article.get("lead"),
         "url": article.get("full_url"),
         "published_at": article.get("published_at"),
         "comment_count": 0
@@ -185,7 +184,6 @@ def process_article(article, search_term):
         0
     )
 
-    # extract comments only
     for comment in data.get(
         "comments",
         []
@@ -205,8 +203,6 @@ def process_article(article, search_term):
                 or comment.get("content")
             )
         })
-
-        # replies intentionally ignored
 
     return news_row, comments
 
@@ -238,12 +234,11 @@ for term in SEARCH_TERMS:
         term
     )
 
-    print(
-        f"Total articles found: "
-        f"{len(articles)}"
-    )
-
     total = len(articles)
+
+    print(
+        f"Total articles found: {total}"
+    )
 
     with ThreadPoolExecutor(
         max_workers=25
@@ -294,7 +289,7 @@ for term in SEARCH_TERMS:
                 )
 
 # ---------------------------------------------------------
-# SAVE
+# SAVE JSON
 # ---------------------------------------------------------
 
 with open(
@@ -312,7 +307,7 @@ with open(
 
 print()
 print("=" * 80)
-print(f"News rows     : {len(output['news'])}")
-print(f"Comment rows  : {len(output['comments'])}")
-print("Saved         : watson_export.json")
+print(f"News rows    : {len(output['news'])}")
+print(f"Comment rows : {len(output['comments'])}")
+print("Saved        : watson_export.json")
 print("=" * 80)
