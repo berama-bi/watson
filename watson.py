@@ -1,6 +1,11 @@
-import requests
 import json
 import time
+import requests
+
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    as_completed
+)
 
 SEARCH_TERMS = [
     "wingo",
@@ -19,15 +24,24 @@ SEARCH_TERMS = [
 SEARCH_URL = "https://www.watson.ch/api/2.0/articles/search"
 DISCUSSION_URL = "https://www.watson.ch/api/2.0/discussions"
 
-session = requests.Session()
-session.trust_env = False
-
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+session = requests.Session()
+session.trust_env = False
+
+adapter = requests.adapters.HTTPAdapter(
+    pool_connections=50,
+    pool_maxsize=50
+)
+
+session.mount("https://", adapter)
+session.mount("http://", adapter)
+
 
 def get_all_search_results(term):
+
     page = 1
     articles = []
 
@@ -62,19 +76,30 @@ def get_all_search_results(term):
             data = response.json()
 
         except Exception as e:
-            print(f"[ERROR] Search {term}: {e}")
+
+            print(
+                f"[SEARCH ERROR] "
+                f"{term}: {e}"
+            )
+
             break
 
-        page_articles = data.get("data", [])
+        page_articles = data.get(
+            "data",
+            []
+        )
 
         if not page_articles:
             break
 
-        articles.extend(page_articles)
+        articles.extend(
+            page_articles
+        )
 
         print(
-            f"Articles this page: {len(page_articles)} | "
-            f"Total: {len(articles)}"
+            f"Found {len(page_articles)} "
+            f"articles | "
+            f"Total {len(articles)}"
         )
 
         if len(page_articles) < 40:
@@ -82,26 +107,21 @@ def get_all_search_results(term):
 
         page += 1
 
-        time.sleep(0.5)
-
     return articles
 
 
 def get_comments(story_id):
 
-    url = f"{DISCUSSION_URL}/{story_id}"
-
     try:
+
+        url = (
+            f"{DISCUSSION_URL}/{story_id}"
+        )
 
         response = session.get(
             url,
             headers=HEADERS,
             timeout=30
-        )
-
-        print(
-            f"[COMMENTS] {story_id} | "
-            f"HTTP {response.status_code}"
         )
 
         if response.status_code != 200:
@@ -112,85 +132,58 @@ def get_comments(story_id):
     except Exception as e:
 
         print(
-            f"[COMMENTS ERROR] {story_id}: {e}"
+            f"[COMMENT ERROR] "
+            f"{story_id}: {e}"
         )
 
         return None
 
 
-output = {
-    "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-    "searches": []
-}
+def process_article(article):
 
-for term in SEARCH_TERMS:
-
-    print("\n" + "=" * 80)
-    print("SEARCH:", term)
-    print("=" * 80)
-
-    articles = get_all_search_results(term)
-
-    search_data = {
-        "search_term": term,
-        "article_count": len(articles),
-        "articles": []
-    }
-
-    for idx, article in enumerate(articles, start=1):
-
-        story_id = article.get("story_id")
-
-        print(
-            f"[ARTICLE] "
-            f"{idx}/{len(articles)} "
-            f"ID={story_id}"
-        )
-
-        discussion = None
-        comment_count = 0
-
-        if story_id:
-
-            discussion = get_comments(story_id)
-
-            if discussion:
-
-                comment_count = (
-                    discussion
-                    .get("data", {})
-                    .get("comments_count", 0)
-                )
-
-        entry = {
-            "story_id": story_id,
-            "title": article.get("title"),
-            "url": article.get("full_url"),
-            "published_at": article.get("published_at"),
-            "comment_count": comment_count,
-            "article": article,
-            "discussion": discussion
-        }
-
-        search_data["articles"].append(entry)
-
-        time.sleep(0.2)
-
-    output["searches"].append(search_data)
-
-with open(
-    "watson_export.json",
-    "w",
-    encoding="utf-8"
-) as f:
-    json.dump(
-        output,
-        f,
-        ensure_ascii=False,
-        indent=2
+    story_id = article.get(
+        "story_id"
     )
 
-print("\n" + "=" * 80)
-print("DONE")
-print("Saved: watson_export.json")
-print("=" * 80)
+    discussion = None
+    comment_count = 0
+
+    if story_id:
+
+        discussion = get_comments(
+            story_id
+        )
+
+        if discussion:
+
+            comment_count = (
+                discussion
+                .get("data", {})
+                .get(
+                    "comments_count",
+                    0
+                )
+            )
+
+    return {
+        "story_id": story_id,
+        "url": article.get(
+            "full_url"
+        ),
+        "title": article.get(
+            "title"
+        ),
+        "published_at": article.get(
+            "published_at"
+        ),
+        "comment_count": comment_count,
+        "article": article,
+        "discussion": discussion
+    }
+
+
+output = {
+    "generated_at": time.strftime(
+        "%Y-%m-%d %H:%M:%S"
+    ),
+    "searches": []
