@@ -154,7 +154,10 @@ def process_article(article, search_term):
 
     story_id = article.get("story_id")
 
+    rows = []
+
     news_row = {
+        "record_type": "news",
         "search_term": search_term,
         "story_id": story_id,
         "title": article.get("title"),
@@ -164,15 +167,15 @@ def process_article(article, search_term):
         "comment_count": 0
     }
 
-    comments = []
+    rows.append(news_row)
 
     if not story_id:
-        return news_row, comments
+        return rows
 
     discussion = get_comments(story_id)
 
     if not discussion:
-        return news_row, comments
+        return rows
 
     data = discussion.get(
         "data",
@@ -189,7 +192,8 @@ def process_article(article, search_term):
         []
     ):
 
-        comments.append({
+        rows.append({
+            "record_type": "comment",
             "search_term": search_term,
             "story_id": story_id,
             "comment_id": comment.get("id"),
@@ -204,20 +208,14 @@ def process_article(article, search_term):
             )
         })
 
-    return news_row, comments
+    return rows
 
 
 # ---------------------------------------------------------
 # OUTPUT
 # ---------------------------------------------------------
 
-output = {
-    "generated_at": time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    ),
-    "news": [],
-    "comments": []
-}
+output = []
 
 # ---------------------------------------------------------
 # MAIN LOOP
@@ -261,17 +259,9 @@ for term in SEARCH_TERMS:
 
             try:
 
-                news_row, comments = (
-                    future.result()
-                )
+                rows = future.result()
 
-                output["news"].append(
-                    news_row
-                )
-
-                output["comments"].extend(
-                    comments
-                )
+                output.extend(rows)
 
             except Exception as e:
 
@@ -305,9 +295,19 @@ with open(
         indent=2
     )
 
+news_count = sum(
+    1 for x in output
+    if x.get("record_type") == "news"
+)
+
+comment_count = sum(
+    1 for x in output
+    if x.get("record_type") == "comment"
+)
+
 print()
 print("=" * 80)
-print(f"News rows    : {len(output['news'])}")
-print(f"Comment rows : {len(output['comments'])}")
+print(f"News rows    : {news_count}")
+print(f"Comment rows : {comment_count}")
 print("Saved        : watson_export.json")
 print("=" * 80)
