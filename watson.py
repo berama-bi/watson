@@ -187,3 +187,96 @@ output = {
         "%Y-%m-%d %H:%M:%S"
     ),
     "searches": []
+}
+
+
+for term in SEARCH_TERMS:
+
+    print()
+    print("=" * 80)
+    print("SEARCH:", term)
+    print("=" * 80)
+
+    articles = get_all_search_results(
+        term
+    )
+
+    search_data = {
+        "search_term": term,
+        "article_count": len(
+            articles
+        ),
+        "articles": []
+    }
+
+    total = len(articles)
+
+    with ThreadPoolExecutor(
+        max_workers=25
+    ) as executor:
+
+        futures = {
+            executor.submit(
+                process_article,
+                article
+            ): article
+            for article in articles
+        }
+
+        done = 0
+
+        for future in as_completed(
+            futures
+        ):
+
+            try:
+
+                result = future.result()
+
+                search_data[
+                    "articles"
+                ].append(
+                    result
+                )
+
+            except Exception as e:
+
+                print(
+                    f"[PROCESS ERROR] {e}"
+                )
+
+            done += 1
+
+            if done % 25 == 0:
+
+                print(
+                    f"{term}: "
+                    f"{done}/{total}"
+                )
+
+    output[
+        "searches"
+    ].append(
+        search_data
+    )
+
+with open(
+    "watson_export.json",
+    "w",
+    encoding="utf-8"
+) as f:
+
+    json.dump(
+        output,
+        f,
+        ensure_ascii=False,
+        indent=2
+    )
+
+print()
+print("=" * 80)
+print("DONE")
+print(
+    "Saved: watson_export.json"
+)
+print("=" * 80)
