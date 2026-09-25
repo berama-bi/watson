@@ -164,7 +164,12 @@ def process_article(article, search_term):
         "lead": article.get("lead"),
         "url": article.get("full_url"),
         "published_at": article.get("published_at"),
-        "comment_count": 0
+        "comment_count": 0,
+
+        "comment_id": None,
+        "created_at": None,
+        "author": None,
+        "text": None
     }
 
     rows.append(news_row)
@@ -194,8 +199,17 @@ def process_article(article, search_term):
 
         rows.append({
             "record_type": "comment",
+
+            # gleiche Felder wie News
             "search_term": search_term,
             "story_id": story_id,
+            "title": article.get("title"),
+            "lead": article.get("lead"),
+            "url": article.get("full_url"),
+            "published_at": article.get("published_at"),
+            "comment_count": news_row["comment_count"],
+
+            # Kommentar-Felder
             "comment_id": comment.get("id"),
             "created_at": comment.get("created_at"),
             "author": (
