@@ -24,6 +24,9 @@ SEARCH_TERMS = [
 SEARCH_URL = "https://www.watson.ch/api/2.0/articles/search"
 DISCUSSION_URL = "https://www.watson.ch/api/2.0/discussions"
 
+MAX_PAGES = 5
+LIMIT = 40
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
@@ -45,14 +48,14 @@ def get_all_search_results(term):
     page = 1
     articles = []
 
-    while True:
+    while page <= MAX_PAGES:
 
         params = {
             "resource": "search",
             "q": term,
             "page": page,
             "period": "total",
-            "limit": 5
+            "limit": LIMIT
         }
 
         try:
@@ -61,12 +64,12 @@ def get_all_search_results(term):
                 SEARCH_URL,
                 params=params,
                 headers=HEADERS,
-                timeout=30
+                timeout=15
             )
 
             print(
                 f"[SEARCH] {term} | "
-                f"Page {page} | "
+                f"Page {page}/{MAX_PAGES} | "
                 f"HTTP {response.status_code}"
             )
 
@@ -102,7 +105,7 @@ def get_all_search_results(term):
             f"Total {len(articles)}"
         )
 
-        if len(page_articles) < 40:
+        if len(page_articles) < LIMIT:
             break
 
         page += 1
@@ -121,7 +124,7 @@ def get_comments(story_id):
         response = session.get(
             url,
             headers=HEADERS,
-            timeout=30
+            timeout=15
         )
 
         if response.status_code != 200:
@@ -189,7 +192,6 @@ output = {
     "searches": []
 }
 
-
 for term in SEARCH_TERMS:
 
     print()
@@ -247,7 +249,7 @@ for term in SEARCH_TERMS:
 
             done += 1
 
-            if done % 25 == 0:
+            if done % 25 == 0 or done == total:
 
                 print(
                     f"{term}: "
@@ -276,7 +278,5 @@ with open(
 print()
 print("=" * 80)
 print("DONE")
-print(
-    "Saved: watson_export.json"
-)
+print("Saved: watson_export.json")
 print("=" * 80)
