@@ -7,37 +7,50 @@ on:
 
 permissions:
   contents: write
-*jobs:
+
+jobs:
   run:
-    runs-on: ubuntu-l*test
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Che*kout
-        uses: actions/checkou*@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Python
-  *     uses: actions/setup-python@v5*        with:
-          python-ver*ion: "3.12"
-
-      - name: Install*Dependencies
-        run: |
-      *   python -m pip install --upgrade*pip
-          pip install requests*
-      - name: Run Watson Scraper
-*       run: python watson.py
-
-    * - name: Commit JSON to Repository*        run: |
-          git confi* user.name "github-actions[bot]"
- *        git config user.email "418*8282+github-actions[bot]@users.nor*ply.github.com"
-
-          git add*watson_export.json
-
-          git *iff --staged --quiet || git commit*-m "Update watson_export.json"
-
-  *       git push
-
-      - name: Upl*ad Artifact
-        uses: actions/*pload-artifact@v4
+        uses: actions/setup-python@v5
         with:
-  *       name: watson-export
-       *  path: watson_export.json
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run Watson scraper
+        run: python watson.py
+
+      - name: Verify output
+        run: |
+          ls -lah
+          test -f watson_export.json
+
+      - name: Commit and push JSON
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add watson_export.json
+
+          if git diff --staged --quiet; then
+            echo "No changes detected"
+          else
+            git commit -m "Update watson_export.json"
+            git push
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: watson-export
+          path: watson_export.json
+          if-no-files-found: error
