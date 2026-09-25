@@ -28,7 +28,6 @@ HEADERS = {
 
 
 def get_all_search_results(term):
-
     page = 1
     articles = []
 
@@ -44,7 +43,7 @@ def get_all_search_results(term):
 
         try:
 
-            r = session.get(
+            response = session.get(
                 SEARCH_URL,
                 params=params,
                 headers=HEADERS,
@@ -52,41 +51,30 @@ def get_all_search_results(term):
             )
 
             print(
-                f"[SEARCH] {term} "
-                f"Seite {page} "
-                f"HTTP {r.status_code}"
+                f"[SEARCH] {term} | "
+                f"Page {page} | "
+                f"HTTP {response.status_code}"
             )
 
-            if r.status_code != 200:
+            if response.status_code != 200:
                 break
 
-            data = r.json()
+            data = response.json()
 
         except Exception as e:
-
-            print(
-                f"Fehler Suche {term}: {e}"
-            )
-
+            print(f"[ERROR] Search {term}: {e}")
             break
 
-        page_articles = data.get(
-            "data",
-            []
-        )
+        page_articles = data.get("data", [])
 
         if not page_articles:
             break
 
-        articles.extend(
-            page_articles
-        )
+        articles.extend(page_articles)
 
         print(
-            f"  Artikel auf Seite: "
-            f"{len(page_articles)} "
-            f"| Total bisher: "
-            f"{len(articles)}"
+            f"Articles this page: {len(page_articles)} | "
+            f"Total: {len(articles)}"
         )
 
         if len(page_articles) < 40:
@@ -101,56 +89,47 @@ def get_all_search_results(term):
 
 def get_comments(story_id):
 
-    url = (
-        f"{DISCUSSION_URL}/{story_id}"
-    )
+    url = f"{DISCUSSION_URL}/{story_id}"
 
     try:
 
-        r = session.get(
+        response = session.get(
             url,
             headers=HEADERS,
             timeout=30
         )
 
         print(
-            f"[COMMENTS] "
-            f"{story_id} "
-            f"HTTP {r.status_code}"
+            f"[COMMENTS] {story_id} | "
+            f"HTTP {response.status_code}"
         )
 
-        if r.status_code != 200:
+        if response.status_code != 200:
             return None
 
-        return r.json()
+        return response.json()
 
     except Exception as e:
 
         print(
-            f"[COMMENTS] Fehler "
-            f"{story_id}: {e}"
+            f"[COMMENTS ERROR] {story_id}: {e}"
         )
 
         return None
 
 
 output = {
-    "generated_at": time.strftime(
-        "%Y-%m-%d %H:%M:%S"
-    ),
+    "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     "searches": []
 }
 
 for term in SEARCH_TERMS:
 
-    print()
-    print("=" * 60)
-    print("SUCHE:", term)
-    print("=" * 60)
+    print("\n" + "=" * 80)
+    print("SEARCH:", term)
+    print("=" * 80)
 
-    articles = get_all_search_results(
-        term
-    )
+    articles = get_all_search_results(term)
 
     search_data = {
         "search_term": term,
@@ -158,20 +137,10 @@ for term in SEARCH_TERMS:
         "articles": []
     }
 
-    for idx, article in enumerate(
-        articles,
-        start=1
-    ):
+    for idx, article in enumerate(articles, start=1):
 
-        story_id = article.get(
-            "story_id"
-        )
+        story_id = article.get("story_id")
 
-        article_url = article.get(
-            "full_url"
-        )
-
-        print()
         print(
             f"[ARTICLE] "
             f"{idx}/{len(articles)} "
@@ -183,9 +152,7 @@ for term in SEARCH_TERMS:
 
         if story_id:
 
-            discussion = get_comments(
-                story_id
-            )
+            discussion = get_comments(story_id)
 
             if discussion:
 
@@ -195,32 +162,27 @@ for term in SEARCH_TERMS:
                     .get("comments_count", 0)
                 )
 
-        search_data["articles"].append(
-            {
-                "story_id": story_id,
-                "url": article_url,
-                "title": article.get("title"),
-                "published_at": article.get(
-                    "published_at"
-                ),
-                "article": article,
-                "comment_count": comment_count,
-                "discussion": discussion
-            }
-        )
+        entry = {
+            "story_id": story_id,
+            "title": article.get("title"),
+            "url": article.get("full_url"),
+            "published_at": article.get("published_at"),
+            "comment_count": comment_count,
+            "article": article,
+            "discussion": discussion
+        }
+
+        search_data["articles"].append(entry)
 
         time.sleep(0.2)
 
-    output["searches"].append(
-        search_data
-    )
+    output["searches"].append(search_data)
 
 with open(
     "watson_export.json",
     "w",
     encoding="utf-8"
 ) as f:
-
     json.dump(
         output,
         f,
@@ -228,9 +190,7 @@ with open(
         indent=2
     )
 
-print()
-print("=" * 60)
-print("FERTIG")
-print("Datei gespeichert:")
-print("  watson_export.json")
-print("=" * 60)
+print("\n" + "=" * 80)
+print("DONE")
+print("Saved: watson_export.json")
+print("=" * 80)
